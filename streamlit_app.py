@@ -11,7 +11,7 @@ import pandas as pd
 import streamlit as st
 from supabase import create_client, Client
 
-APP_VERSION = "v1.0-site-supabase"
+APP_VERSION = "v1.1-site-supabase"
 ATIVIDADES = ["DOC", "Manhã", "Tarde"]
 PERIODOS = ["", "Dia inteiro", "DOC", "Manhã", "Tarde"]
 TIPOS_AUSENCIA = ["", "Férias", "Abonada", "Manhã", "Tarde", "Juri", "OTC", "Lic.Médica", "Folga TRE", "Substituição de chefia"]
@@ -92,6 +92,19 @@ def parse_date(x):
 def to_iso(x):
     d = parse_date(x)
     return d.isoformat() if d else None
+
+
+def prepare_editor_dates(df: pd.DataFrame, date_cols: list[str]) -> pd.DataFrame:
+    """Converte colunas de data para datetime64 antes do st.data_editor.
+    O Supabase devolve DATE como texto ISO; se passar texto para DateColumn,
+    o Streamlit quebra com erro de compatibilidade de tipo.
+    """
+    out = df.copy()
+    for col in date_cols:
+        if col not in out.columns:
+            out[col] = pd.NaT
+        out[col] = pd.to_datetime(out[col], errors="coerce")
+    return out
 
 
 def first_day(year: int, month: int) -> date:
@@ -584,6 +597,7 @@ with abas[1]:
     st.info("Para ausência de um dia só, preencha apenas Data início. Se Servidor = Gil, o substituto padrão é Bruno; se Bruno estiver ausente no período, o sistema considera A definir.")
     cols = ["servidor", "data_inicio", "data_fim", "periodo", "tipo", "substituto_gil", "observacao"]
     edit = abs_df.reindex(columns=cols)
+    edit = prepare_editor_dates(edit, ["data_inicio", "data_fim"])
     edited = st.data_editor(
         edit,
         num_rows="dynamic",
@@ -607,6 +621,7 @@ with abas[1]:
 with abas[2]:
     st.subheader("Feriados e dias sem expediente")
     edit = fer_df.reindex(columns=["data", "descricao", "fonte"])
+    edit = prepare_editor_dates(edit, ["data"])
     edited = st.data_editor(
         edit,
         num_rows="dynamic",
